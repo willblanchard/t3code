@@ -231,10 +231,20 @@ const resolveClientFilePath = Effect.fn("AntigravityAdapter.resolveClientFilePat
   }) {
     const { path } = input;
     const resolved = path.resolve(input.requestPath);
-    // Follow symlinks on the parent so a link out of the workspace cannot escape it.
-    const parent = yield* input.fileSystem
-      .realPath(path.dirname(resolved))
-      .pipe(Effect.orElseSucceed(() => path.dirname(resolved)));
+    // Follow symlinks on the nearest existing ancestor so a link out of the workspace cannot escape it,
+    // and so macOS /var -> /private/var canonicalization matches between non-existent targets and roots.
+    let current = path.dirname(resolved);
+    const segments: string[] = [];
+    let parent = current;
+    while (current !== path.dirname(current)) {
+      const real = yield* input.fileSystem.realPath(current).pipe(Effect.option);
+      if (Option.isSome(real)) {
+        parent = path.join(real.value, ...segments);
+        break;
+      }
+      segments.unshift(path.basename(current));
+      current = path.dirname(current);
+    }
     const real = path.join(parent, path.basename(resolved));
     const roots = yield* Effect.forEach(input.allowedRoots, (root) =>
       input.fileSystem.realPath(root).pipe(Effect.orElseSucceed(() => root)),
