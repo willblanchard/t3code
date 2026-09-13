@@ -236,10 +236,13 @@ const resolveClientFilePath = Effect.fn("AntigravityAdapter.resolveClientFilePat
     let current = path.dirname(resolved);
     const segments: string[] = [];
     let parent = current;
-    while (current !== path.dirname(current)) {
+    while (true) {
       const real = yield* input.fileSystem.realPath(current).pipe(Effect.option);
       if (Option.isSome(real)) {
         parent = path.join(real.value, ...segments);
+        break;
+      }
+      if (current === path.dirname(current)) {
         break;
       }
       segments.unshift(path.basename(current));
